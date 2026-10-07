@@ -1,71 +1,85 @@
 #include "stack.h"
 
-/* For operand stack */
-void operand_stack_init(operand_stack *s)
+/* Number stack */
+void num_init(NumStack *nums)
 {
-    s->top = -1;
-}
-void operand_stack_push(operand_stack *s, int value)
-{
-    if (!operand_stack_full(s))
-    {
-        s->operand[++s->top] = value;
-    }
-}
-int operand_stack_pop(operand_stack *s)
-{
-    if (!operand_stack_empty(s))
-    {
-        int value = s->operand[s->top];
-        s->top--;
-        return value;
-    }
-    return 0;
-}
-int operand_stack_top(operand_stack *s)
-{
-    return s->operand[s->top];
-}
-int operand_stack_empty(operand_stack *s)
-{
-    return s->top == -1;
-}
-int operand_stack_full(operand_stack *s)
-{
-    return s->top == STACK_SIZE - 1;
+    nums->n_top = -1;
 }
 
-/* For operator stack */
-void operator_stack_init(operator_stack *s)
+void num_push(NumStack *nums, double val)
 {
-    s->top = -1;
-}
-void operator_stack_push(operator_stack *s, char value)
-{
-    if (!operator_stack_full(s))
+    if (!num_is_full(nums))
     {
-        s->operator[++s->top] = value;
+        nums->n_data[++nums->n_top] = val;
     }
 }
-char operator_stack_pop(operator_stack *s)
+
+double num_pop(NumStack *nums)
 {
-    if (!operator_stack_empty(s))
+    if (!num_is_empty(nums))
     {
-        char value = s->operator[s->top];
-        s->top--;
-        return value;
+        return nums->n_data[nums->n_top--];
+    }
+    return 0.0;
+}
+
+double num_peek(const NumStack *nums)
+{
+    if (!num_is_empty(nums))
+    {
+        return nums->n_data[nums->n_top];
+    }
+    return 0.0;
+}
+
+int num_is_empty(const NumStack *nums)
+{
+    return nums->n_top == -1;
+}
+
+int num_is_full(const NumStack *nums)
+{
+    return nums->n_top == STACK_SIZE - 1;
+}
+
+/* Operator stack */
+void op_init(OpStack *ops)
+{
+    ops->o_top = -1;
+}
+
+void op_push(OpStack *ops, char val)
+{
+    if (!op_is_full(ops))
+    {
+        ops->o_data[++ops->o_top] = val;
+    }
+}
+
+char op_pop(OpStack *ops)
+{
+    if (!op_is_empty(ops))
+    {
+        return ops->o_data[ops->o_top--];
     }
     return '\0';
 }
-char operator_stack_top(operator_stack *s)
+
+char op_peek(const OpStack *ops)
 {
-    return s->operator[s->top];
+    if (!op_is_empty(ops))
+    {
+        return ops->o_data[ops->o_top];
+    }
+    return '\0';
 }
-int operator_stack_empty(operator_stack *s)
+
+int op_is_empty(const OpStack *ops)
 {
-    return s->top == -1;
+    return ops->o_top == -1;
 }
-int operator_stack_full(operator_stack *s)
+
+int op_is_full(const OpStack *ops)
 {
-    return s->top == STACK_SIZE - 1;
+    return ops->o_top == STACK_SIZE - 1;
 }
