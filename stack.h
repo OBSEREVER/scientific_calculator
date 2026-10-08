@@ -1,34 +1,36 @@
 #ifndef STACK_H
 #define STACK_H
 
-#define STACK_SIZE 100
+#define STACK_CAP 512
 
 typedef struct
 {
-    double n_data[STACK_SIZE];
-    int n_top;
-} NumStack;
+    double data[STACK_CAP];
+    int top;
+} num_stack;
 
 typedef struct
 {
-    char o_data[STACK_SIZE];
-    int o_top;
-} OpStack;
+    char data[STACK_CAP];
+    int top;
+} op_stack;
+
+/* push/pop/peek return 1 on success, 0 on failure (full or empty) */
 
 /* Number stack */
-void   num_init(NumStack *nums);
-void   num_push(NumStack *nums, double val);
-double num_pop(NumStack *nums);
-double num_peek(const NumStack *nums);
-int    num_is_empty(const NumStack *nums);
-int    num_is_full(const NumStack *nums);
+void num_init(num_stack *s);
+int  num_push(num_stack *s, double val);
+int  num_pop(num_stack *s, double *out);
+int  num_peek(const num_stack *s, double *out);
+int  num_is_empty(const num_stack *s);
+int  num_is_full(const num_stack *s);
 
 /* Operator stack */
-void op_init(OpStack *ops);
-void op_push(OpStack *ops, char val);
-char op_pop(OpStack *ops);
-char op_peek(const OpStack *ops);
-int  op_is_empty(const OpStack *ops);
-int  op_is_full(const OpStack *ops);
+void op_init(op_stack *s);
+int  op_push(op_stack *s, char val);
+int  op_pop(op_stack *s, char *out);
+int  op_peek(const op_stack *s, char *out);
+int  op_is_empty(const op_stack *s);
+int  op_is_full(const op_stack *s);
 
 #endif

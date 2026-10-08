@@ -1,85 +1,102 @@
 #include "stack.h"
+#include <stdio.h>
 
-/* Number stack */
-void num_init(NumStack *nums)
+/* ---------- Number stack ---------- */
+
+void num_init(num_stack *s)
 {
-    nums->n_top = -1;
+    s->top = -1;
 }
 
-void num_push(NumStack *nums, double val)
+int num_push(num_stack *s, double val)
 {
-    if (!num_is_full(nums))
+    if (num_is_full(s))
     {
-        nums->n_data[++nums->n_top] = val;
+        fprintf(stderr, "Error: number stack overflow (expression too long)\n");
+        return 0;
     }
+    s->data[++(s->top)] = val;
+    return 1;
 }
 
-double num_pop(NumStack *nums)
+int num_pop(num_stack *s, double *out)
 {
-    if (!num_is_empty(nums))
+    if (num_is_empty(s))
     {
-        return nums->n_data[nums->n_top--];
+        fprintf(stderr, "Error: number stack underflow (missing operand)\n");
+        return 0;
     }
-    return 0.0;
+    *out = s->data[(s->top)--];
+    return 1;
 }
 
-double num_peek(const NumStack *nums)
+int num_peek(const num_stack *s, double *out)
 {
-    if (!num_is_empty(nums))
+    if (num_is_empty(s))
     {
-        return nums->n_data[nums->n_top];
+        fprintf(stderr, "Error: number stack is empty, cannot peek\n");
+        return 0;
     }
-    return 0.0;
+    *out = s->data[s->top];
+    return 1;
 }
 
-int num_is_empty(const NumStack *nums)
+int num_is_empty(const num_stack *s)
 {
-    return nums->n_top == -1;
+    return s->top == -1;
 }
 
-int num_is_full(const NumStack *nums)
+int num_is_full(const num_stack *s)
 {
-    return nums->n_top == STACK_SIZE - 1;
+    return s->top == STACK_CAP - 1;
 }
 
-/* Operator stack */
-void op_init(OpStack *ops)
+/* ---------- Operator stack ---------- */
+
+void op_init(op_stack *s)
 {
-    ops->o_top = -1;
+    s->top = -1;
 }
 
-void op_push(OpStack *ops, char val)
+int op_push(op_stack *s, char val)
 {
-    if (!op_is_full(ops))
+    if (op_is_full(s))
     {
-        ops->o_data[++ops->o_top] = val;
+        fprintf(stderr, "Error: operator stack overflow (expression too long)\n");
+        return 0;
     }
+    s->data[++(s->top)] = val;
+    return 1;
 }
 
-char op_pop(OpStack *ops)
+int op_pop(op_stack *s, char *out)
 {
-    if (!op_is_empty(ops))
+    if (op_is_empty(s))
     {
-        return ops->o_data[ops->o_top--];
+        fprintf(stderr, "Error: operator stack underflow (missing operator)\n");
+        return 0;
     }
-    return '\0';
+    *out = s->data[(s->top)--];
+    return 1;
 }
 
-char op_peek(const OpStack *ops)
+int op_peek(const op_stack *s, char *out)
 {
-    if (!op_is_empty(ops))
+    if (op_is_empty(s))
     {
-        return ops->o_data[ops->o_top];
+        fprintf(stderr, "Error: operator stack is empty, cannot peek\n");
+        return 0;
     }
-    return '\0';
+    *out = s->data[s->top];
+    return 1;
 }
 
-int op_is_empty(const OpStack *ops)
+int op_is_empty(const op_stack *s)
 {
-    return ops->o_top == -1;
+    return s->top == -1;
 }
 
-int op_is_full(const OpStack *ops)
+int op_is_full(const op_stack *s)
 {
-    return ops->o_top == STACK_SIZE - 1;
+    return s->top == STACK_CAP - 1;
 }
