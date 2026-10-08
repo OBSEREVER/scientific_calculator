@@ -7,4 +7,8 @@
    (division by zero, invalid function input, malformed expression). */
 int evaluate_postfix(const postfix_list *postfix, double *result);
 
+/* HERE: Angle mode control (1 = DEG, 0 = RAD) */
+void toggle_angle_mode(void);
+int get_angle_mode(void);
+
 #endif

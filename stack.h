@@ -15,8 +15,6 @@ typedef struct
     int top;
 } op_stack;
 
-/* push/pop/peek return 1 on success, 0 on failure (full or empty) */
-
 /* Number stack */
 void num_init(num_stack *s);
 int  num_push(num_stack *s, double val);

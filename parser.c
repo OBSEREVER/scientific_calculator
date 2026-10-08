@@ -3,11 +3,24 @@
 #include <string.h>
 #include <stdio.h>
 
+static const char *KNOWN_FUNCTIONS[] = {
+    "sin",   "cos",   "tan",   "asin",  "acos",  "atan",
+    "sinh",  "cosh",  "tanh",  "asinh", "acosh", "atanh",
+    "sqrt",  "cbrt",  "log",   "ln",    "log2",  "exp",
+    "abs",   "floor", "ceil",  "round", "trunc", "fact"
+};
+
 static int is_known_function(const char *name)
 {
-    return strcmp(name, "sin") == 0 || strcmp(name, "cos") == 0 ||
-           strcmp(name, "tan") == 0 || strcmp(name, "log") == 0 ||
-           strcmp(name, "ln") == 0 || strcmp(name, "sqrt") == 0;
+    size_t count = sizeof(KNOWN_FUNCTIONS) / sizeof(KNOWN_FUNCTIONS[0]);
+    for (size_t i = 0; i < count; i++)
+    {
+        if (strcmp(name, KNOWN_FUNCTIONS[i]) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static int precedence(char op)
@@ -42,12 +55,6 @@ int parse_to_postfix(const token_list *infix, postfix_list *out)
     op_stack ops;
     op_init(&ops);
     out->count = 0;
-
-    /* We store operator characters on op_stack; functions and parens
-       need tracking too, so we keep a parallel small marker scheme:
-       '(' and ')' go on op_stack as themselves,
-       function tokens are pushed onto op_stack as 'f' marker is not enough,
-       so instead we keep a separate array of pending function tokens. */
 
     token func_pending[STACK_CAP];
     int func_top = -1;
@@ -99,35 +106,37 @@ int parse_to_postfix(const token_list *infix, postfix_list *out)
                     found_lparen = 1;
                     break;
                 }
-                if (top == 'f')
+                
+                token op_tok;
+                op_tok.type = TOKEN_OPERATOR;
+                op_tok.text[0] = top;
+                op_tok.text[1] = '\0';
+                op_tok.value = 0.0;
+                if (!push_output(out, op_tok))
                 {
-                    if (func_top < 0)
-                    {
-                        fprintf(stderr, "Error: function stack underflow\n");
-                        return 0;
-                    }
-                    if (!push_output(out, func_pending[func_top--]))
-                    {
-                        return 0;
-                    }
-                }
-                else
-                {
-                    token op_tok;
-                    op_tok.type = TOKEN_OPERATOR;
-                    op_tok.text[0] = top;
-                    op_tok.text[1] = '\0';
-                    op_tok.value = 0.0;
-                    if (!push_output(out, op_tok))
-                    {
-                        return 0;
-                    }
+                    return 0;
                 }
             }
+
             if (!found_lparen)
             {
                 fprintf(stderr, "Error: mismatched parentheses (missing '(')\n");
                 return 0;
+            }
+
+            /* If a function was invoked on this parenthesized expression, output it now */
+            if (op_peek(&ops, &top) && top == 'f')
+            {
+                op_pop(&ops, &top);
+                if (func_top < 0)
+                {
+                    fprintf(stderr, "Error: function stack underflow\n");
+                    return 0;
+                }
+                if (!push_output(out, func_pending[func_top--]))
+                {
+                    return 0;
+                }
             }
         }
         else if (t.type == TOKEN_OPERATOR)

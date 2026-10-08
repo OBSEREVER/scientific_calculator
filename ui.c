@@ -2,21 +2,28 @@
 #define PDC_NCMOUSE
 
 #include "ui.h"
-#include <curses.h>
+#include "evaluator.h"
 
-/* Fallback macro for PDCurses if getmouse is still not mapped */
-#if defined(PDCURSES) && !defined(getmouse)
-#define getmouse(x) nc_getmouse(x)
+#if defined(__has_include)
+#if __has_include(<pdcurses.h>)
+#include <pdcurses.h>
+#elif __has_include(<pdcurses/curses.h>)
+#include <pdcurses/curses.h>
+#else
+#include <curses.h>
+#endif
+#else
+#include <pdcurses.h>
 #endif
 
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
 
-#define WIN_HEIGHT 20
-#define WIN_WIDTH 64
-#define GRID_ROWS 5
-#define GRID_COLS 6
+#define WIN_HEIGHT 22
+#define WIN_WIDTH 74
+#define GRID_ROWS 6
+#define GRID_COLS 7
 
 enum
 {
@@ -25,53 +32,71 @@ enum
     ACT_CLEAR,
     ACT_ANS,
     ACT_EVAL,
-    ACT_EXIT
+    ACT_EXIT,
+    ACT_MODE,
+    ACT_HELP,
+    ACT_SHIFT
 };
 
 typedef struct
 {
     const char *label;
     const char *insert;
+    const char *shift_label;
+    const char *shift_insert;
     int action;
 } calc_button;
 
 static const calc_button button_grid[GRID_ROWS][GRID_COLS] = {
-    {{" sin  ", "sin(", ACT_INSERT},
-     {" cos  ", "cos(", ACT_INSERT},
-     {" tan  ", "tan(", ACT_INSERT},
-     {" sqrt ", "sqrt(", ACT_INSERT},
-     {" log  ", "log(", ACT_INSERT},
-     {"  ln  ", "ln(", ACT_INSERT}},
-    {{"  (   ", "(", ACT_INSERT},
-     {"  )   ", ")", ACT_INSERT},
-     {"  ^   ", "^", ACT_INSERT},
-     {"  %   ", "%", ACT_INSERT},
-     {" DEL  ", NULL, ACT_DEL},
-     {" CLR  ", NULL, ACT_CLEAR}},
-    {{"  7   ", "7", ACT_INSERT},
-     {"  8   ", "8", ACT_INSERT},
-     {"  9   ", "9", ACT_INSERT},
-     {"  /   ", "/", ACT_INSERT},
-     {"  *   ", "*", ACT_INSERT},
-     {" Ans  ", NULL, ACT_ANS}},
-    {{"  4   ", "4", ACT_INSERT},
-     {"  5   ", "5", ACT_INSERT},
-     {"  6   ", "6", ACT_INSERT},
-     {"  -   ", "-", ACT_INSERT},
-     {"  +   ", "+", ACT_INSERT},
-     {" EXIT ", NULL, ACT_EXIT}},
-    {{"  1   ", "1", ACT_INSERT},
-     {"  2   ", "2", ACT_INSERT},
-     {"  3   ", "3", ACT_INSERT},
-     {"  0   ", "0", ACT_INSERT},
-     {"  .   ", ".", ACT_INSERT},
-     {"  =   ", NULL, ACT_EVAL}}};
+    {{" SHIFT", NULL, " SHIFT", NULL, ACT_SHIFT},
+     {" sin  ", "sin(", " asin ", "asin(", ACT_INSERT},
+     {" cos  ", "cos(", " acos ", "acos(", ACT_INSERT},
+     {" tan  ", "tan(", " atan ", "atan(", ACT_INSERT},
+     {" sqrt ", "sqrt(", " cbrt ", "cbrt(", ACT_INSERT},
+     {"  ln  ", "ln(", " exp  ", "exp(", ACT_INSERT},
+     {" DEG  ", NULL, " DEG  ", NULL, ACT_MODE}},
+    {{" sinh ", "sinh(", " asinh", "asinh(", ACT_INSERT},
+     {" cosh ", "cosh(", " acosh", "acosh(", ACT_INSERT},
+     {" tanh ", "tanh(", " atanh", "atanh(", ACT_INSERT},
+     {" log  ", "log(", " log2 ", "log2(", ACT_INSERT},
+     {" abs  ", "abs(", " fact ", "fact(", ACT_INSERT},
+     {" round", "round(", " trunc", "trunc(", ACT_INSERT},
+     {" floor", "floor(", " ceil ", "ceil(", ACT_INSERT}},
+    {{"  pi  ", "pi", "  pi  ", "pi", ACT_INSERT},
+     {"  e   ", "e", "  e   ", "e", ACT_INSERT},
+     {" CONST", NULL, " CONST", NULL, ACT_HELP},
+     {"  ^   ", "^", "  ^   ", "^", ACT_INSERT},
+     {"  (   ", "(", "  (   ", "(", ACT_INSERT},
+     {"  )   ", ")", "  )   ", ")", ACT_INSERT},
+     {" EXP  ", "e", " 1/x  ", "1/(", ACT_INSERT}},
+    {{"  7   ", "7", "  7   ", "7", ACT_INSERT},
+     {"  8   ", "8", "  8   ", "8", ACT_INSERT},
+     {"  9   ", "9", "  9   ", "9", ACT_INSERT},
+     {"  /   ", "/", "  /   ", "/", ACT_INSERT},
+     {"  *   ", "*", "  *   ", "*", ACT_INSERT},
+     {" DEL  ", NULL, " DEL  ", NULL, ACT_DEL},
+     {" CLR  ", NULL, " CLR  ", NULL, ACT_CLEAR}},
+    {{"  4   ", "4", "  4   ", "4", ACT_INSERT},
+     {"  5   ", "5", "  5   ", "5", ACT_INSERT},
+     {"  6   ", "6", "  6   ", "6", ACT_INSERT},
+     {"  -   ", "-", "  -   ", "-", ACT_INSERT},
+     {"  +   ", "+", "  +   ", "+", ACT_INSERT},
+     {" Ans  ", NULL, " Ans  ", NULL, ACT_ANS},
+     {" EXIT ", NULL, " EXIT ", NULL, ACT_EXIT}},
+    {{"  1   ", "1", "  1   ", "1", ACT_INSERT},
+     {"  2   ", "2", "  2   ", "2", ACT_INSERT},
+     {"  3   ", "3", "  3   ", "3", ACT_INSERT},
+     {"  0   ", "0", "  0   ", "0", ACT_INSERT},
+     {"  .   ", ".", "  .   ", ".", ACT_INSERT},
+     {"  %   ", "%", "  %   ", "%", ACT_INSERT},
+     {"  =   ", NULL, "  =   ", NULL, ACT_EVAL}}};
 
 static WINDOW *calc_win = NULL;
 static char last_status[128] = "Ready. Select a function or type expression.";
 static int last_is_error = 0;
 static double last_result_val = 0.0;
 static int has_last_result = 0;
+static int is_shift_active = 0;
 
 static void center_window(void)
 {
@@ -85,6 +110,79 @@ static void center_window(void)
     {
         mvwin(calc_win, start_y, start_x);
     }
+}
+
+static void show_constants_popup(void)
+{
+    int term_h, term_w;
+    getmaxyx(stdscr, term_h, term_w);
+
+    int pw = 52;
+    int ph = 12;
+    int py = (term_h > ph) ? (term_h - ph) / 2 : 2;
+    int px = (term_w > pw) ? (term_w - pw) / 2 : 2;
+
+    WINDOW *pop = newwin(ph, pw, py, px);
+    if (!pop)
+    {
+        return;
+    }
+
+    keypad(pop, TRUE);
+
+    if (has_colors())
+    {
+        wattron(pop, COLOR_PAIR(1));
+    }
+    box(pop, 0, 0);
+
+    mvwprintw(pop, 1, (pw - 26) / 2, "PHYSICAL CONSTANTS GUIDE");
+    mvwaddch(pop, 2, 0, ACS_LTEE);
+    mvwhline(pop, 2, 1, ACS_HLINE, pw - 2);
+    mvwaddch(pop, 2, pw - 1, ACS_RTEE);
+
+    if (has_colors())
+    {
+        wattroff(pop, COLOR_PAIR(1));
+        wattron(pop, COLOR_PAIR(6));
+    }
+
+    mvwprintw(pop, 3, 4, "c  : Speed of Light    299,792,458 m/s");
+    mvwprintw(pop, 4, 4, "g  : Standard Gravity  9.80665 m/s^2");
+    mvwprintw(pop, 5, 4, "h  : Planck Constant   6.62607e-34 J*s");
+    mvwprintw(pop, 6, 4, "k  : Boltzmann Const   1.38065e-23 J/K");
+    mvwprintw(pop, 7, 4, "na : Avogadro Number   6.02214e+23 1/mol");
+    mvwprintw(pop, 8, 4, "qe : Elementary Charge 1.60218e-19 C");
+
+    if (has_colors())
+    {
+        wattroff(pop, COLOR_PAIR(6));
+        wattron(pop, COLOR_PAIR(1));
+    }
+
+    mvwaddch(pop, 9, 0, ACS_LTEE);
+    mvwhline(pop, 9, 1, ACS_HLINE, pw - 2);
+    mvwaddch(pop, 9, pw - 1, ACS_RTEE);
+
+    if (has_colors())
+    {
+        wattroff(pop, COLOR_PAIR(1));
+        wattron(pop, COLOR_PAIR(4));
+    }
+
+    mvwprintw(pop, 10, (pw - 26) / 2, "Type name | Any key to exit");
+
+    if (has_colors())
+    {
+        wattroff(pop, COLOR_PAIR(4));
+    }
+
+    wrefresh(pop);
+    wgetch(pop);
+    delwin(pop);
+
+    touchwin(calc_win);
+    wrefresh(calc_win);
 }
 
 int ui_init(void)
@@ -104,13 +202,13 @@ int ui_init(void)
     if (has_colors())
     {
         start_color();
-        init_pair(1, COLOR_CYAN, COLOR_BLACK);    /* Border and header */
-        init_pair(2, COLOR_WHITE, COLOR_BLACK);   /* Standard buttons */
-        init_pair(3, COLOR_BLACK, COLOR_CYAN);    /* Highlighted button */
-        init_pair(4, COLOR_GREEN, COLOR_BLACK);   /* Result display */
-        init_pair(5, COLOR_RED, COLOR_BLACK);     /* Error display */
-        init_pair(6, COLOR_YELLOW, COLOR_BLACK);  /* Math function buttons */
-        init_pair(7, COLOR_MAGENTA, COLOR_BLACK); /* Action buttons */
+        init_pair(1, COLOR_CYAN, COLOR_BLACK);
+        init_pair(2, COLOR_WHITE, COLOR_BLACK);
+        init_pair(3, COLOR_BLACK, COLOR_CYAN);
+        init_pair(4, COLOR_GREEN, COLOR_BLACK);
+        init_pair(5, COLOR_RED, COLOR_BLACK);
+        init_pair(6, COLOR_YELLOW, COLOR_BLACK);
+        init_pair(7, COLOR_MAGENTA, COLOR_BLACK);
     }
 
     int term_h, term_w;
@@ -140,7 +238,11 @@ static void draw_calculator(const char *buffer, int sel_row, int sel_col)
     box(calc_win, 0, 0);
 
     /* Header title */
-    mvwprintw(calc_win, 1, (WIN_WIDTH - 25) / 2, "SCIENTIFIC CALCULATOR");
+    char header_title[64];
+    snprintf(header_title, sizeof(header_title), "SCIENTIFIC CALCULATOR [%s]%s",
+             get_angle_mode() ? "DEG" : "RAD",
+             is_shift_active ? " [S]" : "");
+    mvwprintw(calc_win, 1, (WIN_WIDTH - (int)strlen(header_title)) / 2, "%s", header_title);
 
     /* Dividers */
     mvwaddch(calc_win, 2, 0, ACS_LTEE);
@@ -151,9 +253,9 @@ static void draw_calculator(const char *buffer, int sel_row, int sel_col)
     mvwhline(calc_win, 5, 1, ACS_HLINE, WIN_WIDTH - 2);
     mvwaddch(calc_win, 5, WIN_WIDTH - 1, ACS_RTEE);
 
-    mvwaddch(calc_win, 16, 0, ACS_LTEE);
-    mvwhline(calc_win, 16, 1, ACS_HLINE, WIN_WIDTH - 2);
-    mvwaddch(calc_win, 16, WIN_WIDTH - 1, ACS_RTEE);
+    mvwaddch(calc_win, 18, 0, ACS_LTEE);
+    mvwhline(calc_win, 18, 1, ACS_HLINE, WIN_WIDTH - 2);
+    mvwaddch(calc_win, 18, WIN_WIDTH - 1, ACS_RTEE);
 
     if (has_colors())
     {
@@ -166,7 +268,7 @@ static void draw_calculator(const char *buffer, int sel_row, int sel_col)
     {
         wattron(calc_win, COLOR_PAIR(status_color) | A_BOLD);
     }
-    mvwprintw(calc_win, 3, 3, "%-58.58s", last_status);
+    mvwprintw(calc_win, 3, 3, "%-68.68s", last_status);
     if (has_colors())
     {
         wattroff(calc_win, COLOR_PAIR(status_color) | A_BOLD);
@@ -175,11 +277,11 @@ static void draw_calculator(const char *buffer, int sel_row, int sel_col)
     /* Active Expression input line */
     const char *disp_ptr = buffer;
     int len = (int)strlen(buffer);
-    if (len > 50)
+    if (len > 60)
     {
-        disp_ptr = buffer + (len - 50);
+        disp_ptr = buffer + (len - 60);
     }
-    mvwprintw(calc_win, 4, 3, "Expr > %-50.50s", disp_ptr);
+    mvwprintw(calc_win, 4, 3, "Expr > %-60.60s", disp_ptr);
 
     /* Interactive keypad */
     for (int r = 0; r < GRID_ROWS; r++)
@@ -187,9 +289,15 @@ static void draw_calculator(const char *buffer, int sel_row, int sel_col)
         int by = 6 + r * 2;
         for (int c = 0; c < GRID_COLS; c++)
         {
-            int bx = 4 + c * 10;
+            int bx = 3 + c * 10;
             const calc_button *btn = &button_grid[r][c];
             int is_selected = (r == sel_row && c == sel_col);
+
+            const char *display_label = is_shift_active ? btn->shift_label : btn->label;
+            if (btn->action == ACT_MODE)
+            {
+                display_label = get_angle_mode() ? " DEG  " : " RAD  ";
+            }
 
             if (is_selected)
             {
@@ -205,14 +313,19 @@ static void draw_calculator(const char *buffer, int sel_row, int sel_col)
             else
             {
                 int color = 2;
-                if (r == 0)
+                if (btn->action == ACT_SHIFT && is_shift_active)
                 {
-                    color = 6;
+                    color = 6; /* Highlight SHIFT button when active */
+                }
+                else if (r < 2 || (r == 2 && c == 6))
+                {
+                    color = is_shift_active ? 6 : 2; /* Functions and EXP/1/x light yellow in shift mode */
                 }
                 else if (btn->action == ACT_EVAL || btn->action == ACT_DEL ||
-                         btn->action == ACT_CLEAR || btn->action == ACT_EXIT)
+                         btn->action == ACT_CLEAR || btn->action == ACT_EXIT ||
+                         btn->action == ACT_MODE || btn->action == ACT_HELP)
                 {
-                    color = 7;
+                    color = 7; /* Action buttons in magenta */
                 }
 
                 if (has_colors())
@@ -221,7 +334,7 @@ static void draw_calculator(const char *buffer, int sel_row, int sel_col)
                 }
             }
 
-            mvwprintw(calc_win, by, bx, "[%s]", btn->label);
+            mvwprintw(calc_win, by, bx, "[%s]", display_label);
 
             if (is_selected)
             {
@@ -242,15 +355,19 @@ static void draw_calculator(const char *buffer, int sel_row, int sel_col)
     }
 
     /* Footer hints */
-    mvwprintw(calc_win, 17, 3, "Arrows/Mouse: Select  | Enter/Space: Push | Del: Backspace");
-    mvwprintw(calc_win, 18, 3, "Keyboard: Type keys   | '=': Evaluate     | 'q': Quit");
+    mvwprintw(calc_win, 19, 3, "Arrows/Mouse: Select  | Enter/Space: Push | Del: Backspace");
+    mvwprintw(calc_win, 20, 3, "Keyboard: Type keys   | 's': Toggle SHIFT | '?' : Const Guide");
 
     wrefresh(calc_win);
 }
 
 static void remove_last_element(char *buffer, int *expr_len)
 {
-    const char *funcs[] = {"sin(", "cos(", "tan(", "sqrt(", "log(", "ln("};
+    const char *funcs[] = {
+        "asinh(", "acosh(", "atanh(", "asin(", "acos(", "atan(",
+        "sinh(", "cosh(", "tanh(", "round(", "floor(", "ceil(", "trunc(",
+        "sqrt(", "cbrt(", "log2(", "fact(", "log(", "ln(", "exp(", "abs(", "1/(",
+        "sin(", "cos(", "tan("};
     int count = (int)(sizeof(funcs) / sizeof(funcs[0]));
 
     for (int i = 0; i < count; i++)
@@ -309,12 +426,12 @@ int ui_get_expression(char *buffer, int buffer_size)
                         {
                             for (int c = 0; c < GRID_COLS; c++)
                             {
-                                int bx = 4 + c * 10;
+                                int bx = 3 + c * 10;
                                 if (mx >= bx && mx < bx + 8)
                                 {
                                     sel_row = r;
                                     sel_col = c;
-                                    ch = '\n'; /* Trigger button press */
+                                    ch = '\n';
                                     break;
                                 }
                             }
@@ -349,15 +466,39 @@ int ui_get_expression(char *buffer, int buffer_size)
         if (ch == '\n' || ch == '\r' || ch == KEY_ENTER || ch == ' ')
         {
             const calc_button *btn = &button_grid[sel_row][sel_col];
+
+            if (btn->action == ACT_SHIFT)
+            {
+                is_shift_active = !is_shift_active;
+                snprintf(last_status, sizeof(last_status), "SHIFT mode %s.",
+                         is_shift_active ? "ON" : "OFF");
+                continue;
+            }
+
             if (btn->action == ACT_INSERT)
             {
-                int ins_len = (int)strlen(btn->insert);
+                const char *to_insert = is_shift_active ? btn->shift_insert : btn->insert;
+                int ins_len = (int)strlen(to_insert);
                 if (expr_len + ins_len < buffer_size - 1)
                 {
-                    memcpy(buffer + expr_len, btn->insert, ins_len);
+                    memcpy(buffer + expr_len, to_insert, ins_len);
                     expr_len += ins_len;
                     buffer[expr_len] = '\0';
                 }
+                if (is_shift_active)
+                {
+                    is_shift_active = 0;
+                }
+            }
+            else if (btn->action == ACT_MODE)
+            {
+                toggle_angle_mode();
+                snprintf(last_status, sizeof(last_status), "Mode changed to %s.",
+                         get_angle_mode() ? "DEG (Degrees)" : "RAD (Radians)");
+            }
+            else if (btn->action == ACT_HELP)
+            {
+                show_constants_popup();
             }
             else if (btn->action == ACT_DEL)
             {
@@ -397,7 +538,20 @@ int ui_get_expression(char *buffer, int buffer_size)
             continue;
         }
 
-        /* Keyboard Shortcuts */
+        if (ch == 's' || ch == 'S')
+        {
+            is_shift_active = !is_shift_active;
+            snprintf(last_status, sizeof(last_status), "SHIFT mode %s.",
+                     is_shift_active ? "ON" : "OFF");
+            continue;
+        }
+
+        if (ch == '?')
+        {
+            show_constants_popup();
+            continue;
+        }
+
         if (ch == '=')
         {
             if (expr_len > 0)
@@ -421,14 +575,13 @@ int ui_get_expression(char *buffer, int buffer_size)
             continue;
         }
 
-        if (ch == 27) /* Escape clears */
+        if (ch == 27)
         {
             expr_len = 0;
             buffer[0] = '\0';
             continue;
         }
 
-        /* Direct typing for numbers, operators, parens, and function text */
         if (isprint((unsigned char)ch))
         {
             if (expr_len < buffer_size - 1)
